@@ -1,0 +1,7 @@
+project_id           = "your-gcp-project-id"
+region               = "asia-northeast1"
+service_name         = "sre-playground"
+container_image_blue = "gcr.io/your-gcp-project-id/sre-playground:blue"
+container_image_green = "gcr.io/your-gcp-project-id/sre-playground:green"
+blue_weight          = 100
+green_weight         = 0
