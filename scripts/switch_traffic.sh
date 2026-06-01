@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TF_DIR="${ROOT_DIR}/infra/terraform"
 # shellcheck source=lib/load_config.sh
 source "${ROOT_DIR}/lib/load_config.sh"
@@ -15,11 +15,12 @@ BLUE_TAG="blue"
 GREEN_TAG="green"
 BLUE_WEIGHT=""
 GREEN_WEIGHT=""
+ALLOW_EMPTY_STATE="false"
 
 usage() {
   cat <<'EOF'
 使い方:
-  ./switch_traffic.sh [--config ./.sre_playground.env] [--project <PROJECT_ID>] [--to blue|green | --blue-weight N --green-weight M] [options]
+  ./scripts/switch_traffic.sh [--config ./.sre_playground.env] [--project <PROJECT_ID>] [--to blue|green | --blue-weight N --green-weight M] [options]
 
 options:
   --config <FILE>                Config file path (default: ./.sre_playground.env)
@@ -32,6 +33,7 @@ options:
   --service-name <NAME>          Terraform service name (default: sre-playground)
   --blue-tag <TAG>               Existing blue image tag (default: blue)
   --green-tag <TAG>              Existing green image tag (default: green)
+  --allow-empty-state            Skip Terraform state safety check
   --help                         Show this help
 EOF
 }
@@ -43,6 +45,28 @@ error() {
 
 info() {
   echo "[INFO] $*"
+}
+
+ensure_non_empty_state() {
+  local state_list
+
+  state_list="$(terraform -chdir="${TF_DIR}" state list 2>/dev/null || true)"
+  if [[ -n "${state_list}" ]]; then
+    return 0
+  fi
+
+  error "$(cat <<EOF
+terraform state is empty, so applying traffic weights would attempt to recreate existing resources.
+
+Recover one of these before retrying:
+  1. Restore the original infra/terraform/terraform.tfstate used for the first deploy
+  2. Import the existing GCP resources into Terraform state
+  3. Re-run ./scripts/deploy_blue_green.sh from the environment that still has the correct state
+
+If you intentionally want to apply against an empty state, rerun with:
+  ./scripts/switch_traffic.sh --allow-empty-state ...
+EOF
+)"
 }
 
 while [[ $# -gt 0 ]]; do
@@ -72,6 +96,7 @@ while [[ $# -gt 0 ]]; do
     --service-name) SERVICE_NAME="$2"; shift 2 ;;
     --blue-tag) BLUE_TAG="$2"; shift 2 ;;
     --green-tag) GREEN_TAG="$2"; shift 2 ;;
+    --allow-empty-state) ALLOW_EMPTY_STATE="true"; shift 1 ;;
     --help|-h) usage; exit 0 ;;
     *) usage; error "unknown argument: $1" ;;
   esac
@@ -89,6 +114,13 @@ fi
 
 BLUE_IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY_NAME}/${SERVICE_NAME}:${BLUE_TAG}"
 GREEN_IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY_NAME}/${SERVICE_NAME}:${GREEN_TAG}"
+
+info "Running terraform init"
+terraform -chdir="${TF_DIR}" init >/dev/null
+
+if [[ "${ALLOW_EMPTY_STATE}" != "true" ]]; then
+  ensure_non_empty_state
+fi
 
 info "Applying traffic split blue=${BLUE_WEIGHT}, green=${GREEN_WEIGHT}"
 terraform -chdir="${TF_DIR}" apply -auto-approve \

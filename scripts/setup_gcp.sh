@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=lib/load_config.sh
 source "${ROOT_DIR}/lib/load_config.sh"
 
 # =============================================================================
 # SRE Playground — GCP 初期セットアップスクリプト
-# 使い方: ./setup_gcp.sh [--config ./.sre_playground.env] [--project sre-playground-xxxx] [--region asia-northeast1] [--repository sre-playground]
+# 使い方: ./scripts/setup_gcp.sh [--config ./.sre_playground.env] [--project sre-playground-xxxx] [--region asia-northeast1] [--repository sre-playground]
 # 冪等: 既に存在するリソースはスキップします
 # =============================================================================
 
@@ -140,7 +140,7 @@ else
 fi
 
 info "Docker 認証を設定します..."
-gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+  gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
 ok "Docker 認証を設定しました"
 
 # =============================================================================
@@ -260,5 +260,5 @@ echo "     export TF_VAR_region=\"${REGION}\""
 echo "     export ARTIFACT_REGISTRY_REPOSITORY=\"${REPOSITORY_NAME}\""
 echo ""
 echo "  2. 初回デプロイ:"
-echo "     ./deploy_blue_green.sh --project ${PROJECT_ID} --region ${REGION} --repository ${REPOSITORY_NAME} --service-name ${SERVICE_NAME} --blue-weight 100 --green-weight 0"
+echo "     ./scripts/deploy_blue_green.sh --project ${PROJECT_ID} --region ${REGION} --repository ${REPOSITORY_NAME} --service-name ${SERVICE_NAME} --blue-weight 100 --green-weight 0"
 echo ""

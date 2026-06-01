@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 info() {
   echo "[INFO] $*"
@@ -23,6 +23,10 @@ info "Installing API dependencies"
 python3 -m venv "${ROOT_DIR}/apps/api/.venv"
 "${ROOT_DIR}/apps/api/.venv/bin/pip" install -r "${ROOT_DIR}/apps/api/requirements.txt"
 
+info "Installing probe-agent dependencies"
+python3 -m venv "${ROOT_DIR}/apps/probe-agent/.venv"
+"${ROOT_DIR}/apps/probe-agent/.venv/bin/pip" install -r "${ROOT_DIR}/apps/probe-agent/requirements.txt"
+
 info "Installing dashboard dependencies"
 npm --prefix "${ROOT_DIR}/apps/dashboard" install
 
@@ -39,6 +43,10 @@ Start API:
 
 Start dashboard:
   NEXT_PUBLIC_API_BASE_URL=http://localhost:8000 npm --prefix "${ROOT_DIR}/apps/dashboard" run dev
+
+Start probe-agent:
+  source "${ROOT_DIR}/apps/probe-agent/.venv/bin/activate"
+  uvicorn app.main:app --reload --app-dir "${ROOT_DIR}/apps/probe-agent"
 
 Start sample app:
   npm --prefix "${ROOT_DIR}/apps/sample-app" run dev

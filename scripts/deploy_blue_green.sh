@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TF_DIR="${ROOT_DIR}/infra/terraform"
 APP_DIR="${ROOT_DIR}/apps/sample-app"
 # shellcheck source=lib/load_config.sh
@@ -17,11 +17,15 @@ GREEN_WEIGHT="0"
 BLUE_TAG="blue"
 GREEN_TAG="green"
 SKIP_BUILD="false"
+OTEL_EXPORTER_OTLP_TRACES_ENDPOINT="${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:-}"
+OTEL_ENVIRONMENT="${OTEL_ENVIRONMENT:-demo}"
+GREEN_EXTRA_LATENCY_MS="${GREEN_EXTRA_LATENCY_MS:-0}"
+APP_ERROR_RATE="${APP_ERROR_RATE:-0}"
 
 usage() {
   cat <<'EOF'
 使い方:
-  ./deploy_blue_green.sh [--config ./.sre_playground.env] [--project <PROJECT_ID>] [options]
+  ./scripts/deploy_blue_green.sh [--config ./.sre_playground.env] [--project <PROJECT_ID>] [options]
 
 options:
   --config <FILE>                Config file path (default: ./.sre_playground.env)
@@ -33,6 +37,10 @@ options:
   --green-weight <0-100>         Green traffic weight (default: 0)
   --blue-tag <TAG>               Blue image tag (default: blue)
   --green-tag <TAG>              Green image tag (default: green)
+  --otel-traces-endpoint <URL>   OTLP HTTP traces endpoint for sample apps
+  --otel-environment <VALUE>     OTel environment attribute (default: demo)
+  --green-extra-latency-ms <MS>  Extra latency injected into green (default: 0)
+  --app-error-rate <RATE>        Injected error rate for green, 0-1 (default: 0)
   --skip-build                   Skip docker build/push and run only terraform
   --help                         Show this help
 EOF
@@ -58,7 +66,7 @@ ensure_gcloud_auth() {
 ensure_artifact_registry_access() {
   gcloud config set project "${PROJECT_ID}" >/dev/null
   gcloud artifacts repositories describe "${REPOSITORY_NAME}" --location="${REGION}" >/dev/null 2>&1 \
-    || error "Artifact Registry repository '${REPOSITORY_NAME}' was not found in ${REGION}. Run: ./setup_gcp.sh"
+    || error "Artifact Registry repository '${REPOSITORY_NAME}' was not found in ${REGION}. Run: ./scripts/setup_gcp.sh"
   gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet >/dev/null
 }
 
@@ -81,6 +89,10 @@ while [[ $# -gt 0 ]]; do
     --green-weight) GREEN_WEIGHT="$2"; shift 2 ;;
     --blue-tag) BLUE_TAG="$2"; shift 2 ;;
     --green-tag) GREEN_TAG="$2"; shift 2 ;;
+    --otel-traces-endpoint) OTEL_EXPORTER_OTLP_TRACES_ENDPOINT="$2"; shift 2 ;;
+    --otel-environment) OTEL_ENVIRONMENT="$2"; shift 2 ;;
+    --green-extra-latency-ms) GREEN_EXTRA_LATENCY_MS="$2"; shift 2 ;;
+    --app-error-rate) APP_ERROR_RATE="$2"; shift 2 ;;
     --skip-build) SKIP_BUILD="true"; shift 1 ;;
     --help|-h) usage; exit 0 ;;
     *) usage; error "unknown argument: $1" ;;
@@ -141,6 +153,10 @@ terraform -chdir="${TF_DIR}" apply -auto-approve \
   -var="service_name=${SERVICE_NAME}" \
   -var="container_image_blue=${BLUE_IMAGE}" \
   -var="container_image_green=${GREEN_IMAGE}" \
+  -var="otel_exporter_otlp_traces_endpoint=${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT}" \
+  -var="otel_environment=${OTEL_ENVIRONMENT}" \
+  -var="green_extra_latency_ms=${GREEN_EXTRA_LATENCY_MS}" \
+  -var="app_error_rate=${APP_ERROR_RATE}" \
   -var="blue_weight=${BLUE_WEIGHT}" \
   -var="green_weight=${GREEN_WEIGHT}"
 

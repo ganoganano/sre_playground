@@ -1,6 +1,6 @@
 # GCP credentials
 credentials/
-*.json
+google-cloud-sdk/
 
 # Terraform
 **/.terraform/
@@ -18,3 +18,4 @@ __pycache__/
 
 # Local config
 .sre_playground.env
+.run/
