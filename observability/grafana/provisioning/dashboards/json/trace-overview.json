@@ -1,0 +1,56 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": "Tempo",
+      "gridPos": {
+        "h": 16,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "dedicatedServiceMap": false,
+        "spanBar": {
+          "type": "none"
+        }
+      },
+      "targets": [
+        {
+          "limit": 20,
+          "query": "{ resource.service.name = \"sre-playground-sample-app\" }",
+          "queryType": "search"
+        }
+      ],
+      "title": "Sample App Traces",
+      "type": "traces"
+    }
+  ],
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": [
+    "otel",
+    "tempo"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "SRE Playground Trace Overview",
+  "uid": "sre-playground-traces",
+  "version": 1,
+  "weekStart": ""
+}

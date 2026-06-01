@@ -6,7 +6,9 @@ ARG APP_COLOR=blue
 ARG APP_VERSION=v1
 
 COPY package.json ./
+RUN npm install
 COPY server.js ./
+COPY telemetry.js ./
 
 ENV PORT=8080
 ENV APP_COLOR=${APP_COLOR}

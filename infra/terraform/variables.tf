@@ -52,3 +52,27 @@ variable "allow_unauthenticated" {
   type        = bool
   default     = true
 }
+
+variable "otel_exporter_otlp_traces_endpoint" {
+  description = "OTLP HTTP traces endpoint for the sample app."
+  type        = string
+  default     = ""
+}
+
+variable "otel_environment" {
+  description = "OTel environment attribute for the sample app."
+  type        = string
+  default     = "demo"
+}
+
+variable "green_extra_latency_ms" {
+  description = "Extra latency injected into green responses."
+  type        = string
+  default     = "0"
+}
+
+variable "app_error_rate" {
+  description = "Injected error rate for the green app."
+  type        = string
+  default     = "0"
+}

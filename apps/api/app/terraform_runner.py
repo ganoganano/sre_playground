@@ -7,7 +7,8 @@ from asyncio.subprocess import PIPE
 from pathlib import Path
 from typing import AsyncIterator
 
-from .config import DEFAULT_STATE, TERRAFORM_DIR
+from .config import TERRAFORM_DIR
+from .state import build_infra_state, load_runtime_config
 
 
 class TerraformRunner:
@@ -40,10 +41,31 @@ class TerraformRunner:
     async def _stream_real_apply(
         self, blue_weight: int, green_weight: int
     ) -> AsyncIterator[dict]:
+        runtime = load_runtime_config()
+        if not runtime["project_id"]:
+            yield self._event(
+                "error",
+                {
+                    "phase": "failed",
+                    "message": "PROJECT_ID is not set in .sre_playground.env",
+                },
+            )
+            return
+
         command = [
             "terraform",
             "apply",
+            "-json",
             "-auto-approve",
+            f"-var=project_id={runtime['project_id']}",
+            f"-var=region={runtime['region']}",
+            f"-var=service_name={runtime['service_name']}",
+            f"-var=container_image_blue={runtime['blue_image']}",
+            f"-var=container_image_green={runtime['green_image']}",
+            f"-var=otel_exporter_otlp_traces_endpoint={runtime['otel_exporter_otlp_traces_endpoint']}",
+            f"-var=otel_environment={runtime['otel_environment']}",
+            f"-var=green_extra_latency_ms={runtime['green_extra_latency_ms']}",
+            f"-var=app_error_rate={runtime['app_error_rate']}",
             f"-var=blue_weight={blue_weight}",
             f"-var=green_weight={green_weight}",
         ]
@@ -59,25 +81,53 @@ class TerraformRunner:
             "status",
             {
                 "phase": "applying",
-                "message": "terraform apply started",
+                "message": "terraform apply -json started",
                 "progress": 15,
             },
         )
 
-        async def read_stream(stream, channel: str):
+        queue: asyncio.Queue[dict | None] = asyncio.Queue()
+
+        async def read_stdout(stream):
             while True:
                 line = await stream.readline()
                 if not line:
                     break
                 text = line.decode("utf-8", errors="replace").rstrip()
                 if text:
-                    yield self._event("log", {"channel": channel, "message": text})
+                    await queue.put(
+                        self._event("log", {"channel": "stdout", "message": text})
+                    )
+                    parsed = self._parse_terraform_json_line(text)
+                    if parsed is not None:
+                        await queue.put(parsed)
+            await queue.put(None)
 
-        async for event in read_stream(process.stdout, "stdout"):
+        async def read_stderr(stream):
+            while True:
+                line = await stream.readline()
+                if not line:
+                    break
+                text = line.decode("utf-8", errors="replace").rstrip()
+                if text:
+                    await queue.put(
+                        self._event("log", {"channel": "stderr", "message": text})
+                    )
+            await queue.put(None)
+
+        stdout_task = asyncio.create_task(read_stdout(process.stdout))
+        stderr_task = asyncio.create_task(read_stderr(process.stderr))
+        completed_readers = 0
+
+        while completed_readers < 2:
+            event = await queue.get()
+            if event is None:
+                completed_readers += 1
+                continue
             yield event
 
-        async for event in read_stream(process.stderr, "stderr"):
-            yield event
+        await stdout_task
+        await stderr_task
 
         return_code = await process.wait()
         if return_code != 0:
@@ -92,7 +142,14 @@ class TerraformRunner:
 
         yield self._event(
             "state",
-            self.build_state_payload(blue_weight, green_weight, status="serving"),
+            build_infra_state(
+                blue_weight=blue_weight,
+                green_weight=green_weight,
+                load_balancer_status="serving",
+                rollout_phase="completed",
+                rollout_progress=100,
+                rollout_message="terraform apply completed",
+            ),
         )
         yield self._event(
             "status",
@@ -133,7 +190,14 @@ class TerraformRunner:
 
         yield self._event(
             "state",
-            self.build_state_payload(blue_weight, green_weight, status="serving"),
+            build_infra_state(
+                blue_weight=blue_weight,
+                green_weight=green_weight,
+                load_balancer_status="serving",
+                rollout_phase="completed",
+                rollout_progress=100,
+                rollout_message="mock deployment completed",
+            ),
         )
         yield self._event(
             "status",
@@ -144,17 +208,44 @@ class TerraformRunner:
             },
         )
 
-    def build_state_payload(
-        self, blue_weight: int, green_weight: int, status: str
-    ) -> dict:
-        payload = json.loads(json.dumps(DEFAULT_STATE))
-        payload["traffic"]["blue"] = blue_weight
-        payload["traffic"]["green"] = green_weight
-        payload["loadBalancer"]["status"] = status
-        payload["services"][0]["status"] = "serving" if blue_weight > 0 else "standby"
-        payload["services"][1]["status"] = "serving" if green_weight > 0 else "standby"
-        return payload
-
     @staticmethod
     def _event(event: str, data: dict) -> dict:
         return {"event": event, "data": data}
+
+    def _parse_terraform_json_line(self, line: str) -> dict | None:
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError:
+            return None
+
+        event_type = payload.get("type", "")
+        message = payload.get("message") or payload.get("@message") or event_type
+
+        progress_map = {
+            "version": 10,
+            "planned_change": 30,
+            "change_summary": 45,
+            "apply_start": 60,
+            "apply_progress": 75,
+            "apply_complete": 90,
+            "outputs": 95,
+        }
+        progress = progress_map.get(event_type, 20)
+
+        if event_type in {"diagnostic", "apply_errored"}:
+            return self._event(
+                "error",
+                {
+                    "phase": "failed",
+                    "message": message,
+                },
+            )
+
+        return self._event(
+            "status",
+            {
+                "phase": event_type,
+                "message": message,
+                "progress": progress,
+            },
+        )

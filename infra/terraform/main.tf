@@ -21,6 +21,16 @@ resource "google_cloud_run_v2_service" "blue" {
         name  = "APP_VERSION"
         value = "blue"
       }
+
+      env {
+        name  = "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"
+        value = var.otel_exporter_otlp_traces_endpoint
+      }
+
+      env {
+        name  = "OTEL_ENVIRONMENT"
+        value = var.otel_environment
+      }
     }
   }
 }
@@ -42,6 +52,26 @@ resource "google_cloud_run_v2_service" "green" {
       env {
         name  = "APP_VERSION"
         value = "green"
+      }
+
+      env {
+        name  = "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"
+        value = var.otel_exporter_otlp_traces_endpoint
+      }
+
+      env {
+        name  = "OTEL_ENVIRONMENT"
+        value = var.otel_environment
+      }
+
+      env {
+        name  = "GREEN_EXTRA_LATENCY_MS"
+        value = var.green_extra_latency_ms
+      }
+
+      env {
+        name  = "APP_ERROR_RATE"
+        value = var.app_error_rate
       }
     }
   }
