@@ -19,3 +19,5 @@ __pycache__/
 # Local config
 .sre_playground.env
 .run/
+o11y企画書.md
+sre_playground_企画書.md
