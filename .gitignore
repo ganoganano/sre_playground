@@ -1,6 +1,7 @@
 # GCP credentials
 credentials/
 google-cloud-sdk/
+google-cloud-cli-*.tar.gz
 
 # Terraform
 **/.terraform/
