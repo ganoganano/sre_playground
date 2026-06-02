@@ -3,6 +3,8 @@
 企画書ベースで構築した、GCP 上の Blue/Green デプロイメントと可視化ダッシュボードの実装です。  
 運用用シェルスクリプトは [scripts](/home/nagano/project/sre_playground/scripts) 配下にまとめています。
 
+![SRE Playground dashboard](./playground.gif)
+
 ## 設定ファイル
 
 毎回 `--project` を渡さなくて済むように、ルートの `.sre_playground.env` を読めるようにしています。  
